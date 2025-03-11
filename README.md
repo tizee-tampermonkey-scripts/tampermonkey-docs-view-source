@@ -28,6 +28,8 @@ The script looks for GitHub edit links on documentation pages and creates a corr
 
 ## Adding Support for New Sites
 
+### For Sites with Edit Links
+
 To add support for a new documentation site, add a new configuration object to the `siteConfigs` array with the following properties:
 
 ```javascript
@@ -44,6 +46,23 @@ To add support for a new documentation site, add a new configuration object to t
     debug: '[SITE CODE]'                    // Debug prefix for console messages
 }
 ```
+
+### For Sites without Edit Links but with Known Repository Structure
+
+```javascript
+{
+    name: 'Site Name',                      // Name of the documentation site
+    type: 'custom-pattern',                 // Type of configuration
+    container: 'selector1, selector2',      // CSS selectors for where to add the View Source link
+    urlPattern: {
+        pageUrlRegex: /https:\/\/example\.com\/docs\/(.+)/, // Regex to extract documentation path
+        repoUrl: 'https://github.com/org/repo/raw/refs/heads/main/docs/$1.md', // URL pattern using captured group
+        transformations: [                  // Optional transformations to apply to the path
+            { from: /\/index$/, to: '' }    // Example: remove /index from paths
+        ]
+    },
+    debug: '[SITE CODE]'                    // Debug prefix for console messages
+}
 
 ## Contributing
 

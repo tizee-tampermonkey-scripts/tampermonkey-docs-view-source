@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Documentation Source Viewer
 // @namespace    http://github.com/tizee
-// @version      1.0.0
-// @description  Add "View Source" links to documentation sites with GitHub edit links
+// @version      1.1.0
+// @description  Add "View Source" links to documentation sites with or without GitHub edit links
 // @author       tizee
 // @match        https://developers.cloudflare.com/*
 // @match        https://packaging.python.org/en/latest/*
+// @match        https://docs.astral.sh/uv/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @grant        none
 // ==/UserScript==
@@ -15,8 +16,10 @@
 
     // Configuration for different sites
     const siteConfigs = [
+        // Sites with edit links
         {
             name: 'Cloudflare',
+            type: 'edit-link',
             selector: 'footer .meta a[href^="https://github.com/cloudflare/cloudflare-docs/edit"]',
             container: 'footer .meta',
             replacements: [
@@ -29,6 +32,7 @@
         },
         {
             name: 'Python Packaging',
+            type: 'edit-link',
             selector: '.edit-this-page a[href^="https://github.com/pypa/packaging.python.org/edit"]',
             container: '.edit-this-page',
             replacements: [
@@ -38,6 +42,22 @@
                 }
             ],
             debug: '[PY PKG]'
+        },
+        // Sites without edit links but with known repository structure
+        {
+            name: 'Astral UV',
+            type: 'custom-pattern',
+            container: '.md-header__inner.md-grid',
+            urlPattern: {
+                pageUrlRegex: /https:\/\/docs\.astral\.sh\/uv\/(.+)/,
+                repoUrl: 'https://github.com/astral-sh/uv/raw/refs/heads/main/docs/$1.md',
+                // Transformations to apply to the captured path
+                transformations: [
+                    { from: /\/index$/, to: '' },  // Remove /index from URL paths
+                    { from: /\/$/, to: '' }        // Remove trailing slash
+                ]
+            },
+            debug: '[ASTRAL UV]'
         }
         // Add more site configurations here as needed
     ];
@@ -47,8 +67,8 @@
         return `doc-source-viewer-${siteName.toLowerCase().replace(/\s+/g, '-')}`;
     }
 
-    // Generic function to add "View Source" link
-    function addViewSourceLink(config) {
+    // Function to add "View Source" link for sites with edit links
+    function addViewSourceLinkFromEditLink(config) {
         try {
             // Generate unique ID for this site's view source link
             const viewSourceLinkId = generateViewSourceLinkId(config.name);
@@ -100,12 +120,104 @@
         }
     }
 
+    // Function to add "View Source" link for sites with custom patterns
+    function addViewSourceLinkFromCustomPattern(config) {
+        try {
+            // Generate unique ID for this site's view source link
+            const viewSourceLinkId = generateViewSourceLinkId(config.name);
+
+            // Check if the link already exists
+            if (document.getElementById(viewSourceLinkId)) {
+                console.debug(`${config.debug} View source link already exists`);
+                return true;
+            }
+
+            // Get the current page URL without hash and search parameters
+            let pageUrl = window.location.origin + window.location.pathname;
+
+            // Check if the current URL matches the pattern
+            const match = pageUrl.match(config.urlPattern.pageUrlRegex);
+            if (!match) {
+                console.debug(`${config.debug} URL pattern doesn't match: ${pageUrl}`);
+                return false;
+            }
+
+            // Extract the path from the match
+            let path = match[1];
+
+            // Apply any transformations to the path
+            if (config.urlPattern.transformations) {
+                for (const transformation of config.urlPattern.transformations) {
+                    path = path.replace(transformation.from, transformation.to);
+                }
+            }
+
+            // Generate the source URL - replace $1 with the processed path
+            const sourceUrl = config.urlPattern.repoUrl.replace('$1', path);
+
+            // Find a container to add the link to
+            // Try multiple potential containers (comma-separated in the config)
+            const containerSelectors = config.container.split(',').map(s => s.trim());
+
+            let container = null;
+            for (const selector of containerSelectors) {
+                const found = document.querySelector(selector);
+                if (found) {
+                    container = found;
+                    break;
+                }
+            }
+
+            if (!container) {
+                console.debug(`${config.debug} No container found for view source link`);
+                return false;
+            }
+
+            // Create the view source link
+            const viewSourceLink = document.createElement('a');
+            viewSourceLink.href = sourceUrl;
+            viewSourceLink.textContent = "View Source";
+            viewSourceLink.title = "View the source document";
+            viewSourceLink.id = viewSourceLinkId;
+            viewSourceLink.className = "doc-source-viewer-link";
+            viewSourceLink.style.cssText = "margin-right: 10px; font-size: 0.9em; text-decoration: none;";
+
+            // Create a container div if needed
+            const linkContainer = document.createElement('div');
+            linkContainer.className = "doc-source-viewer-container";
+            linkContainer.style.cssText = "margin: 10px 0; padding: 5px; display: flex; align-items: center;";
+            linkContainer.appendChild(viewSourceLink);
+
+            // Add the link container at the beginning of the container
+            if (container.firstChild) {
+                container.insertBefore(linkContainer, container.firstChild);
+            } else {
+                container.appendChild(linkContainer);
+            }
+
+            // Log the new link URL for debugging
+            console.debug(`${config.debug} Added custom view source link: ${sourceUrl}`);
+            return true;
+        } catch (error) {
+            console.error(`${config.debug} Error adding custom view source link:`, error);
+            return false;
+        }
+    }
+
     // Try each site configuration
     function init() {
         let applied = false;
 
         for (const config of siteConfigs) {
-            if (addViewSourceLink(config)) {
+            let success = false;
+
+            if (config.type === 'edit-link') {
+                success = addViewSourceLinkFromEditLink(config);
+            } else if (config.type === 'custom-pattern') {
+                success = addViewSourceLinkFromCustomPattern(config);
+            }
+
+            if (success) {
                 applied = true;
                 break; // Stop after the first successful application
             }
@@ -123,8 +235,7 @@
         init();
     }
 
-    // Optional: Set up a mutation observer to handle dynamic content loading
-    // This is useful for single-page applications where the content might change without a full page reload
+    // Set up a mutation observer to handle dynamic content loading
     const observeConfig = {
         childList: true,
         subtree: true
@@ -136,10 +247,15 @@
             return Array.from(mutation.addedNodes).some(node => {
                 if (node.nodeType === Node.ELEMENT_NODE) {
                     // Check if any of our containers were added
-                    return siteConfigs.some(config =>
-                        node.querySelector(config.container) ||
-                        node.matches(config.container)
-                    );
+                    return siteConfigs.some(config => {
+                        if (config.container) {
+                            const containerSelectors = config.container.split(',').map(s => s.trim());
+                            return containerSelectors.some(selector =>
+                                node.querySelector(selector) || node.matches(selector)
+                            );
+                        }
+                        return false;
+                    });
                 }
                 return false;
             });
