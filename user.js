@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Documentation Source Viewer
 // @namespace    http://github.com/tizee
-// @version      1.1.0
+// @version      1.1.1
 // @description  Add "View Source" links to documentation sites with or without GitHub edit links
 // @author       tizee
 // @match        https://developers.cloudflare.com/*
 // @match        https://packaging.python.org/en/latest/*
 // @match        https://docs.astral.sh/uv/*
+// @match        https://peps.python.org/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // @grant        none
 // ==/UserScript==
@@ -58,7 +59,21 @@
                 ]
             },
             debug: '[ASTRAL UV]'
-        }
+        },
+        {
+            name: 'Python PEP',
+            type: 'edit-link',
+            selector: 'article p a.reference.external[href^="https://github.com/python/peps/blob/"]',
+            container: 'article',
+            replacements: [
+                {
+                    from: /https:\/\/github\.com\/python\/peps\/blob\//,
+                    to: 'https://raw.githubusercontent.com/python/peps/refs/heads/'
+          // https://raw.githubusercontent.com/python/peps/refs/heads/main/peps/pep-0723.rst
+                }
+            ],
+            debug: '[PY PEP]'
+        },
         // Add more site configurations here as needed
     ];
 

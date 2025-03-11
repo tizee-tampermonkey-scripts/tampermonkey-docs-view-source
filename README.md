@@ -14,6 +14,8 @@ A Tampermonkey userscript that adds "View Source" links to documentation sites w
 
 - Cloudflare Documentation (`developers.cloudflare.com`)
 - Python Packaging Documentation (`packaging.python.org`)
+- Python UV tool Documentation (`https://docs.astral.sh/uv/`)
+- Python PEP Documentation (`https://peps.python.org/`)
 
 ## How It Works
 
